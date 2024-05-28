@@ -11,7 +11,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import kotlin.concurrent.timerTask
 import com.example.stepcounter.databinding.ActivityMainBinding
 import kotlin.math.roundToInt
 import android.hardware.Sensor
@@ -45,6 +44,9 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
     private var totalSteps = 0f
     private var prevTotalSteps = 0f
 
+    lateinit var distServiceIntent: Intent
+    var distanceTravelled = 0.0
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,13 +67,40 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
         loadData()
         resetSteps()
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    }
 
+        distServiceIntent = Intent(applicationContext, DistanceTravelledService::class.java)
+        registerReceiver(updateDistance, IntentFilter(DistanceTravelledService.DISTANCE_UPDATED), RECEIVER_EXPORTED)
+        resetDistance()
+        startService(distServiceIntent)
+    }
 
     /*
         DISTANCE TRAVELLED
      */
+    private val updateDistance: BroadcastReceiver = object : BroadcastReceiver()
+    {
+        override fun onReceive(context: Context, intent: Intent)
+        {
+            distanceTravelled = intent.getDoubleExtra(DistanceTravelledService.DISTANCE_EXTRA, 0.0)
+            binding.distanceText.text = String.format("%.0f %s", distanceTravelled, "m")
+        }
+    }
 
+    private fun resetDistance() {
+        var distanceTv = binding.distanceText
+        distanceTv.setOnClickListener {
+            Toast.makeText(this, "Hold to reset distance travelled", Toast.LENGTH_SHORT).show()
+        }
+
+        distanceTv.setOnLongClickListener {
+
+            distServiceIntent.putExtra(DistanceTravelledService.DISTANCE_EXTRA, 0.0)
+            distanceTv.text = String.format("%.0f %s", 0.0, "m")
+
+            // Presumably this is the return of the callback?
+            true
+        }
+    }
 
     /*
         PEDOMETER
@@ -112,7 +141,7 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
     private fun resetSteps() {
         var stepsTakenTv = binding.stepText
         stepsTakenTv.setOnClickListener {
-            Toast.makeText(this, "Long tap to reset steps", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Hold to reset steps", Toast.LENGTH_SHORT).show()
         }
 
         stepsTakenTv.setOnLongClickListener {

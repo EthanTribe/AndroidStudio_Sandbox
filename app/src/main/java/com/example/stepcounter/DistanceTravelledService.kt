@@ -13,29 +13,27 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ActivityCompat
 
-class DistanceTraveledService : Service() {
+class DistanceTravelledService : Service() {
     private var distTravelBinder: DistanceTravelBinder = DistanceTravelBinder()
-    private var distanceTraveledInMetres = 0.0
+    private var distanceTravelledInMetres = 0.0
     private var lastLocation: Location? = null
 
     override fun onCreate() {
-        Log.v("MainActivity", "Distance service created")
         val locationListener: LocationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
                 if (lastLocation == null) {
                     lastLocation = location
                 }
-                distanceTraveledInMetres += location.distanceTo(lastLocation!!).toDouble()
+                distanceTravelledInMetres += location.distanceTo(lastLocation!!).toDouble()
 
                 val intent = Intent(DISTANCE_UPDATED)
-                intent.putExtra(DISTANCE_EXTRA, distanceTraveledInMetres)
+                intent.putExtra(DISTANCE_EXTRA, distanceTravelledInMetres)
                 sendBroadcast(intent)
-                Log.v("MainActivity", "onLocationChanged")
             }
 
-            override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {Log.v("MainActivity", "onStatusChanged")}
-            override fun onProviderEnabled(provider: String) {Log.v("MainActivity", "onProviderEnabled")}
-            override fun onProviderDisabled(provider: String) {Log.v("MainActivity", "onProviderDisabled")}
+            override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
         }
 
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
@@ -44,7 +42,7 @@ class DistanceTraveledService : Service() {
             ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED)
         {
-            Log.v("MainActivity", "No permissions")
+            Log.v("MainActivity", "DistanceTravelledService: No permissions")
             return
         }
         locationManager.requestLocationUpdates(
@@ -52,7 +50,7 @@ class DistanceTraveledService : Service() {
             1000,
             1f,
             locationListener)
-        Log.v("MainActivity", "Permissioned")
+        Log.v("MainActivity", "DistanceTravelledService: Permissioned")
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -60,12 +58,8 @@ class DistanceTraveledService : Service() {
     }
 
     inner class DistanceTravelBinder : Binder() {
-        val binder: DistanceTraveledService
-            get() = this@DistanceTraveledService
-    }
-
-    fun getDistanceTraveled(): Double {
-        return distanceTraveledInMetres
+        val binder: DistanceTravelledService
+            get() = this@DistanceTravelledService
     }
 
     companion object {
