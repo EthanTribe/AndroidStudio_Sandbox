@@ -43,9 +43,13 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
     private var running = false
     private var totalSteps = 0f
     private var prevTotalSteps = 0f
+    private val stepPrefKey = "steps"
 
     lateinit var distServiceIntent: Intent
-    var distanceTravelled = 0.0
+    var distanceTravelled = 0f
+    var speed = 0f
+    var pace = "0:00"
+    private val distancePrefKey = "dist"
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,14 +68,20 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
         serviceIntent = Intent(applicationContext, TimerService::class.java)
         registerReceiver(updateTime, IntentFilter(TimerService.TIMER_UPDATED), RECEIVER_EXPORTED)
 
-        loadData()
+        loadStepData()
         resetSteps()
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
 
+        loadDistanceData()
+        resetDistance()
         distServiceIntent = Intent(applicationContext, DistanceTravelledService::class.java)
         registerReceiver(updateDistance, IntentFilter(DistanceTravelledService.DISTANCE_UPDATED), RECEIVER_EXPORTED)
-        resetDistance()
         startService(distServiceIntent)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        saveData(distancePrefKey, distanceTravelled)
     }
 
     /*
@@ -81,8 +91,14 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
     {
         override fun onReceive(context: Context, intent: Intent)
         {
-            distanceTravelled = intent.getDoubleExtra(DistanceTravelledService.DISTANCE_EXTRA, 0.0)
+            distanceTravelled += intent.getFloatExtra(DistanceTravelledService.DISTANCE_EXTRA, 0f)
             binding.distanceText.text = String.format("%.0f %s", distanceTravelled, "m")
+            speed = intent.getFloatExtra(DistanceTravelledService.SPEED_EXTRA, 0f)
+            Log.v("MainActivity", "speed = $speed")
+            pace = getTimeStringFromDouble(speed.toDouble())
+            Log.v("MainActivity", "pace = $pace")
+            pace = pace.substring(3)
+            binding.speedText.text = "$pace /km"
         }
     }
 
@@ -93,13 +109,19 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
         }
 
         distanceTv.setOnLongClickListener {
+            Log.v("MainActivity", "Resetting distance travelled")
+            distanceTravelled = 0f
+            distanceTv.text = String.format("%.0f %s", distanceTravelled, "m")
 
-            distServiceIntent.putExtra(DistanceTravelledService.DISTANCE_EXTRA, 0.0)
-            distanceTv.text = String.format("%.0f %s", 0.0, "m")
-
-            // Presumably this is the return of the callback?
             true
         }
+    }
+
+    private fun loadDistanceData() {
+        val sharedPreferences = getSharedPreferences("myPrefs", Context.MODE_PRIVATE)
+        distanceTravelled = sharedPreferences.getFloat(distancePrefKey, 0f)
+        binding.distanceText.text = String.format("%.0f %s", distanceTravelled, "m")
+        Log.v("MainActivity", "savedDist = $distanceTravelled")
     }
 
     /*
@@ -152,29 +174,29 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
             // the steps will be reset to 0
             stepsTakenTv.text = "0 steps"
 
-            saveData()
+            saveData(stepPrefKey, prevTotalSteps)
+            // The system/listener holds on to your steps so needs to be reset manually
 
             // Presumably this is the return of the callback?
             true
         }
     }
 
-    private fun saveData() {
+    private fun saveData(key : String, value : Float) {
         // Shared Preferences will allow us to save
         // and retrieve data in the form of key,value pair.
         val sharedPreferences = getSharedPreferences("myPrefs", Context.MODE_PRIVATE)
 
         val editor = sharedPreferences.edit()
-        editor.putFloat("key1", prevTotalSteps)
+        editor.putFloat(key, value)
         editor.apply()
     }
 
-    private fun loadData() {
+    private fun loadStepData() {
         val sharedPreferences = getSharedPreferences("myPrefs", Context.MODE_PRIVATE)
-        val savedSteps = sharedPreferences.getFloat("key1", 0f)
+        val savedSteps = sharedPreferences.getFloat(stepPrefKey, 0f)
 
-        // Log.d is used for debugging purposes
-        Log.d("MainActivity", "$savedSteps")
+        Log.v("MainActivity", "savedSteps = $savedSteps")
 
         prevTotalSteps = savedSteps
     }
@@ -219,6 +241,7 @@ class MainActivity : AppCompatActivity() , View.OnClickListener , SensorEventLis
         override fun onReceive(context: Context, intent: Intent)
         {
             time = intent.getDoubleExtra(TimerService.TIME_EXTRA, 0.0)
+            Log.v("MainActivity", "time double = $time")
             binding.timerText.text = getTimeStringFromDouble(time)
         }
     }

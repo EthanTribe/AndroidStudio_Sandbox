@@ -14,20 +14,38 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 
 class DistanceTravelledService : Service() {
+    private var locationListener: LocationListener? = null
+    private var locationManager: LocationManager? = null
     private var distTravelBinder: DistanceTravelBinder = DistanceTravelBinder()
-    private var distanceTravelledInMetres = 0.0
+    private var distanceChanged = 0f
     private var lastLocation: Location? = null
+    val intent = Intent(DISTANCE_UPDATED)
+    private val pollPeriod : Long = 5 // time in seconds between location update requests
 
     override fun onCreate() {
-        val locationListener: LocationListener = object : LocationListener {
+        Log.v("DistanceTravelledService", "onCreate")
+        locationListener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
+                Log.v("DistanceTravelledService", "location = $location")
+                Log.v("DistanceTravelledService", "lastLocation = $lastLocation")
                 if (lastLocation == null) {
                     lastLocation = location
                 }
-                distanceTravelledInMetres += location.distanceTo(lastLocation!!).toDouble()
+                distanceChanged = location.distanceTo(lastLocation!!)
+                lastLocation = location
 
-                val intent = Intent(DISTANCE_UPDATED)
-                intent.putExtra(DISTANCE_EXTRA, distanceTravelledInMetres)
+                intent.putExtra(DISTANCE_EXTRA, distanceChanged)
+                if (distanceChanged == 0f)
+                {
+                    intent.putExtra(SPEED_EXTRA, 0.0)
+                    Log.d("DistanceTravelledService", "Not moved")
+                }
+                else
+                {
+                    val speed = 1000f * pollPeriod.toFloat() / distanceChanged
+                    intent.putExtra(SPEED_EXTRA, speed)
+                    Log.d("DistanceTravelledService", "moved $distanceChanged in $pollPeriod s at a pace of $speed")
+                }
                 sendBroadcast(intent)
             }
 
@@ -36,21 +54,29 @@ class DistanceTravelledService : Service() {
             override fun onProviderDisabled(provider: String) {}
         }
 
-        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED &&
             ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
                 != PackageManager.PERMISSION_GRANTED)
         {
-            Log.v("MainActivity", "DistanceTravelledService: No permissions")
+            Log.v("DistanceTravelledService", "No permissions")
             return
         }
-        locationManager.requestLocationUpdates(
+
+        locationManager!!.requestLocationUpdates(
             LocationManager.GPS_PROVIDER,
-            1000,
+            pollPeriod * 1000,
             1f,
-            locationListener)
-        Log.v("MainActivity", "DistanceTravelledService: Permissioned")
+            locationListener!!)
+        Log.v("DistanceTravelledService", "Permissioned")
+    }
+
+    fun reset() {
+        if (locationManager != null)
+        {
+            locationManager!!.removeUpdates(locationListener!!)
+        }
     }
 
     override fun onBind(intent: Intent): IBinder? {
@@ -65,5 +91,6 @@ class DistanceTravelledService : Service() {
     companion object {
         const val DISTANCE_UPDATED = "distanceUpdated"
         const val DISTANCE_EXTRA = "distanceExtra"
+        const val SPEED_EXTRA = "speedExtra"
     }
 }
